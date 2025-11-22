@@ -1,8 +1,7 @@
 <?php
 /**
- * TWITTER STYLE SHORTLINK SYSTEM (Single File Auto-Installer)
- * Features: Twitter-like loading screen, Clean URLs, Auto .htaccess creation, Modern Admin Panel.
- * Author: [Your Name/GitHub Username]
+ * SIMPLE SHORTLINK SYSTEM (Instant Redirect Version)
+ * Features: Direct Redirect (No Delay), Clean URLs, Auto .htaccess creation, Modern Admin Panel.
  */
 
 // --- CONFIGURATION ---
@@ -10,7 +9,7 @@ $admin_password   = "12345";                 // Admin Login Password
 $secret_path      = "panel";                 // Admin Access: domain.com/v/?panel
 $fallback_url     = "https://videqlix.live"; // Redirect destination if link is invalid/direct access
 $db_filename      = "database.json";         // JSON Database filename
-$loading_duration = 3;                       // Loading duration in seconds
+// $loading_duration tidak lagi dibutuhkan karena redirect instan
 
 // =============================================================
 // PART 1: AUTO-INSTALLER (.HTACCESS)
@@ -51,48 +50,19 @@ $links = json_decode(file_get_contents($db_filename), true);
 if (!is_array($links)) $links = [];
 
 // =============================================================
-// PART 3: VISITOR VIEW (TWITTER STYLE LOADER)
+// PART 3: VISITOR VIEW (INSTANT REDIRECT)
 // =============================================================
 if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
     $code = $_GET['v'];
     
     if (isset($links[$code])) {
         $target_url = $links[$code]['url'];
-        ?>
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-          <title>Checking browser Wait...</title>
-          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-          <style>
-            * { margin:0; padding:0; }
-            body, html { height:100%; background:#ffffff; overflow:hidden; }
-            .loader { position:fixed; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#fff; font-family:Arial,Helvetica,sans-serif; background:#000; transition:opacity .4s ease; z-index:9999; }
-            .spinner { position: relative; width:60px; height:60px; border:6px solid #222; border-top-color:#00ccff; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
-            .spinner i { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 28px; color: #00ccff; }
-            @keyframes spin { to { transform:rotate(360deg); } }
-            .text { font-size:1.1rem; }
-            .fade { opacity:0; }
-          </style>
-        </head>
-        <body>
-        <div class="loader" id="loader">
-          <div class="spinner"><i class="fa-brands fa-x-twitter"></i></div>
-          <div class="text">Checking browser Wait...</div>
-        </div>
-        <script>
-          setTimeout(() => {
-            const loader = document.getElementById('loader');
-            loader.classList.add('fade');
-            setTimeout(() => { window.location = '<?php echo $target_url; ?>'; }, 400);
-          }, <?php echo $loading_duration * 1000; ?>);
-        </script>
-        </body>
-        </html>
-        <?php
+        
+        // LOGIKA BARU: Langsung redirect tanpa HTML/Loading
+        header("HTTP/1.1 301 Moved Permanently"); // Opsional: Bagus untuk SEO
+        header("Location: " . $target_url);
         exit();
+        
     } else {
         // Invalid code -> Redirect to fallback
         header("Location: " . $fallback_url);
