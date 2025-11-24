@@ -1,20 +1,18 @@
 <?php
 /**
- * SIMPLE SHORTLINK SYSTEM (Instant Redirect Version)
- * Features: Direct Redirect (No Delay), Clean URLs, Auto .htaccess creation, Modern Admin Panel.
+ * SIMPLE SHORTLINK SYSTEM (Stealth Redirect Version)
+ * Features: Client-Side Redirect (Status 200 OK), Base64 Obfuscation, Clean URLs, Modern Admin Panel.
  */
 
 // --- CONFIGURATION ---
-$admin_password   = "12345";                 // Admin Login Password
-$secret_path      = "panel";                 // Admin Access: domain.com/v/?panel
+$admin_password   = "12345";                  // Admin Login Password
+$secret_path      = "panel";                  // Admin Access: domain.com/v/?panel
 $fallback_url     = "https://videqlix.live"; // Redirect destination if link is invalid/direct access
-$db_filename      = "database.json";         // JSON Database filename
-// $loading_duration tidak lagi dibutuhkan karena redirect instan
+$db_filename      = "database.json";          // JSON Database filename
 
 // =============================================================
 // PART 1: AUTO-INSTALLER (.HTACCESS)
 // =============================================================
-// This block ensures clean URLs (e.g., domain.com/v/AbCd1) work automatically.
 $htaccess_content = "RewriteEngine On
 <Files \"$db_filename\">
     Order Allow,Deny
@@ -26,7 +24,6 @@ RewriteRule ^([a-zA-Z0-9-]+)$ index.php?v=$1 [L,QSA]";
 
 if (!file_exists('.htaccess')) {
     @file_put_contents('.htaccess', $htaccess_content);
-    // Refresh page to apply server settings immediately
     echo "<meta http-equiv='refresh' content='0'>";
     exit();
 }
@@ -37,20 +34,18 @@ if (!file_exists('.htaccess')) {
 session_start();
 error_reporting(0);
 
-// Helper: Get clean base URL
 function getBaseUrl() {
     $protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
     $path = str_replace(basename($_SERVER['SCRIPT_NAME']), "", $_SERVER['SCRIPT_NAME']);
     return $protocol . $_SERVER['HTTP_HOST'] . $path;
 }
 
-// Database Initialization
 if (!file_exists($db_filename)) file_put_contents($db_filename, json_encode([]));
 $links = json_decode(file_get_contents($db_filename), true);
 if (!is_array($links)) $links = [];
 
 // =============================================================
-// PART 3: VISITOR VIEW (INSTANT REDIRECT)
+// PART 3: VISITOR VIEW (STEALTH REDIRECT - STATUS 200)
 // =============================================================
 if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
     $code = $_GET['v'];
@@ -58,13 +53,52 @@ if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
     if (isset($links[$code])) {
         $target_url = $links[$code]['url'];
         
-        // LOGIKA BARU: Langsung redirect tanpa HTML/Loading
-        header("HTTP/1.1 301 Moved Permanently"); // Opsional: Bagus untuk SEO
-        header("Location: " . $target_url);
-        exit();
+        // --- MODIFIKASI: STEALTH REDIRECT ---
+        // 1. Kirim status 200 OK (Crawler mengira ini halaman akhir/artikel)
+        http_response_code(200);
+
+        // 2. Encode URL Target ke Base64 (Agar crawler text-based tidak melihat URL asli di source code)
+        $b64_url = base64_encode($target_url);
+        ?>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta name="robots" content="noindex, nofollow">
+            <title>Loading...</title>
+            <style>
+                body { background-color: #121212; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: sans-serif; color: #e2e8f0; overflow: hidden; }
+                .loader { width: 40px; height: 40px; border: 3px solid #333; border-top-color: #0ea5e9; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
+                p { font-size: 0.9rem; color: #888; animation: pulse 1.5s infinite; }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+            </style>
+        </head>
+        <body>
+            <div class="loader"></div>
+            <p>Please wait, redirecting...</p>
+
+            <script>
+                // Decode URL dari Base64
+                var target = atob("<?php echo $b64_url; ?>");
+                
+                // Gunakan replace() agar tombol 'Back' browser tidak kembali ke loading page ini
+                setTimeout(function() {
+                    window.location.replace(target);
+                }, 300); // Delay 0.3 detik agar browser sempat render HTML (opsional)
+            </script>
+
+            <noscript>
+                <meta http-equiv="refresh" content="0;url=<?php echo $target_url; ?>">
+            </noscript>
+        </body>
+        </html>
+        <?php
+        exit(); // Stop eksekusi script di sini
         
     } else {
-        // Invalid code -> Redirect to fallback
+        // Jika Kode Salah -> Redirect ke Fallback
         header("Location: " . $fallback_url);
         exit();
     }
@@ -76,15 +110,12 @@ if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
 elseif (isset($_GET[$secret_path])) {
     $msg = "";
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        // Login Logic
         if (isset($_POST['auth_pass'])) {
             if ($_POST['auth_pass'] === $admin_password) $_SESSION['admin_logged'] = true;
             else $msg = "Invalid Password!";
         }
-        // Logout Logic
         if (isset($_POST['logout'])) { session_destroy(); header("Refresh:0"); exit(); }
         
-        // CRUD Logic
         if (isset($_SESSION['admin_logged'])) {
             if (isset($_POST['long_url'])) {
                 $url = trim($_POST['long_url']);
