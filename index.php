@@ -45,7 +45,7 @@ $links = json_decode(file_get_contents($db_filename), true);
 if (!is_array($links)) $links = [];
 
 // =============================================================
-// PART 3: VISITOR VIEW (STEALTH REDIRECT - STATUS 200)
+// PART 3: VISITOR VIEW (STEALTH REDIRECT - TWITTER STYLE)
 // =============================================================
 if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
     $code = $_GET['v'];
@@ -53,57 +53,103 @@ if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
     if (isset($links[$code])) {
         $target_url = $links[$code]['url'];
         
-        // --- MODIFIKASI: STEALTH REDIRECT ---
-        // 1. Kirim status 200 OK (Crawler mengira ini halaman akhir/artikel)
+        // 1. Kirim status 200 OK (Agar bot mengira ini konten valid)
         http_response_code(200);
 
-        // 2. Encode URL Target ke Base64 (Agar crawler text-based tidak melihat URL asli di source code)
+        // 2. Encode URL Target ke Base64 (Sembunyikan tujuan dari source code)
         $b64_url = base64_encode($target_url);
         ?>
         <!DOCTYPE html>
-        <html lang="en">
+        <html lang="id">
         <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
             <meta name="robots" content="noindex, nofollow">
-            <title>Loading...</title>
+            <title>Checking browser Wait...</title>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
             <style>
-                body { background-color: #121212; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; font-family: sans-serif; color: #e2e8f0; overflow: hidden; }
-                .loader { width: 40px; height: 40px; border: 3px solid #333; border-top-color: #0ea5e9; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
-                p { font-size: 0.9rem; color: #888; animation: pulse 1.5s infinite; }
-                @keyframes spin { to { transform: rotate(360deg); } }
-                @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+                * { margin:0; padding:0; box-sizing: border-box; }
+                body, html { height:100%; background:#000000; overflow:hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+                
+                .loader {
+                    position:fixed; inset:0; display:flex; flex-direction:column;
+                    justify-content:center; align-items:center; color:#fff;
+                    background:#000; transition:opacity .4s ease; z-index:9999;
+                }
+                
+                .spinner-box {
+                    position: relative;
+                    width: 60px; height: 60px;
+                    display: flex; justify-content: center; align-items: center;
+                    margin-bottom: 20px;
+                }
+
+                /* Lingkaran Berputar */
+                .spinner {
+                    position: absolute;
+                    width: 100%; height: 100%;
+                    border: 4px solid #333;
+                    border-top-color: #1d9bf0; /* Warna Biru Twitter/X */
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                }
+
+                /* Logo X diam di tengah */
+                .logo-icon {
+                    font-size: 24px;
+                    color: #fff;
+                    z-index: 2;
+                }
+
+                @keyframes spin { to { transform:rotate(360deg); } }
+                
+                .text { font-size: 1rem; color: #71767b; font-weight: 500; }
+                .fade { opacity:0; pointer-events: none; }
             </style>
         </head>
         <body>
-            <div class="loader"></div>
-            <p>Please wait, redirecting...</p>
 
-            <script>
-                // Decode URL dari Base64
-                var target = atob("<?php echo $b64_url; ?>");
+        <div class="loader" id="loader">
+            <div class="spinner-box">
+                <div class="spinner"></div>
+                <i class="fa-brands fa-x-twitter logo-icon"></i>
+            </div>
+            <div class="text">Checking browser Wait...</div>
+        </div>
+
+        <div style="display:none;">
+            <img src="//sstatic1.histats.com/0.gif?4985217&101" alt="" border="0">
+        </div>
+
+        <script>
+            // Ambil URL tujuan yang sudah di-enkripsi dari PHP
+            var target = atob("<?php echo $b64_url; ?>");
+
+            setTimeout(() => {
+                const loader = document.getElementById('loader');
+                loader.classList.add('fade');
                 
-                // Gunakan replace() agar tombol 'Back' browser tidak kembali ke loading page ini
-                setTimeout(function() {
+                setTimeout(() => {
+                    // Gunakan replace agar user tidak bisa tekan Back
                     window.location.replace(target);
-                }, 300); // Delay 0.3 detik agar browser sempat render HTML (opsional)
-            </script>
+                }, 400); // Waktu untuk animasi fade out selesai
+                
+            }, 2000); // Durasi loading (2 detik cukup agar terlihat natural)
+        </script>
 
-            <noscript>
-                <meta http-equiv="refresh" content="0;url=<?php echo $target_url; ?>">
-            </noscript>
+        <noscript><meta http-equiv="refresh" content="0;url=<?php echo $target_url; ?>"></noscript>
+
         </body>
         </html>
         <?php
-        exit(); // Stop eksekusi script di sini
+        exit();
         
     } else {
-        // Jika Kode Salah -> Redirect ke Fallback
         header("Location: " . $fallback_url);
         exit();
     }
 }
-
+    
 // =============================================================
 // PART 4: ADMIN PANEL (MODERN UI)
 // =============================================================
